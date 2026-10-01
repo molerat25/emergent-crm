@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Emergent Outreach CRM</title>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap">
+<style>
+/* Layout: nothing but the flow. People sit on the left as soft pills; thin curved arrows grow out of them
+   to their panels, to each lead, then weave through the conversation: what we sent rides high and outlined,
+   what they sent back rides low and filled. Editing happens in one floating panel. Single dark look by request. */
+:root{
+  --bg:#000;
+  --fg:#fff;
+  --dim:#8f8f8f;
+  --faint:#565656;
+  --hair:#2a2a2a;
+  --wire:#d2d2d2;
+  --halo:rgba(255,255,255,.13);
+  --sheet:#0b0b0b;
+  --ink-dim:#5c5c5c;
+  --ok:#30d158;
+  --no:#ff453a;
+  --sans:"DM Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  --drawer:380px;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 var(--sans);-webkit-font-smoothing:antialiased}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer;text-align:left}
+button:disabled{cursor:default;opacity:.45}
+:focus-visible{outline:1px solid var(--fg);outline-offset:3px}
+.dim{color:var(--dim)}
+.ic{display:inline-flex}
+.ic svg{width:1em;height:1em;display:block}
+.defs{position:absolute;width:0;height:0}
+.ahp{fill:none;stroke:var(--wire);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round}
+
+.app{padding-inline:28px;padding-block:22px 90px;display:flex;flex-direction:column;gap:38px;min-width:0}
+@media (min-width:1000px){body.has-drawer .app{margin-right:calc(var(--drawer) + 14px)}}
+@media (max-width:480px){.app{padding-inline:16px}}
+
+.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 22px}
+.brand{font-weight:600;margin-right:auto}
+.nav{display:flex;gap:20px}
+.nav button{color:var(--dim)}
+.nav button:hover,.nav button[aria-pressed="true"]{color:var(--fg)}
+.status{font-size:12px;color:var(--dim)}
+.status:empty{display:none}
+#main{display:flex;flex-direction:column;gap:30px;min-width:0}
+.quiet{color:var(--dim);max-width:52ch}
+.add{color:var(--faint);font-size:13px;padding:5px 6px;border-radius:999px;align-self:flex-start;white-space:nowrap}
+.add:hover{color:var(--fg)}
+.foot{font-size:12px;color:var(--faint);display:flex;gap:8px;align-items:baseline}
+.textbtn{font-size:12px;color:var(--dim);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint)}
+.textbtn:hover{color:var(--fg)}
+.textbtn.danger:hover,.textbtn.armed{color:var(--no);text-decoration-color:var(--no)}
+
+/* opening screen */
+.people{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.person{border:1px solid var(--fg);border-radius:34px;padding:15px 28px;display:flex;flex-direction:column;gap:2px;max-width:100%}
+.person .nm{font-size:18px;font-weight:600;overflow-wrap:anywhere}
+.person .sub{font-size:13px;color:var(--dim);overflow-wrap:anywhere}
+.person:hover{box-shadow:0 0 0 5px var(--halo)}
+.people .add{align-self:center;padding:10px 12px}
+
+/* the flow */
+.scroller{overflow-x:auto;padding:8px 6px 14px;margin-inline:-6px}
+.flow{position:relative;width:max-content;min-width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:46px}
+.wires{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+.wires path{fill:none;stroke:var(--wire);stroke-width:1}
+.wires path.w-wait{stroke:var(--faint);stroke-dasharray:3 4}
+.wires circle{fill:var(--bg);stroke:var(--faint);stroke-width:1}
+.branch{display:flex;align-items:center;gap:64px}
+.kids{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.chain{display:flex;align-items:center;gap:46px;padding-block:10px}
+.node{position:relative;flex:none;display:flex;flex-direction:column;line-height:1.25;max-width:230px;background:var(--bg);border:1px solid var(--fg);border-radius:26px;padding:7px 17px}
+.node:hover{box-shadow:0 0 0 4px var(--halo)}
+.node.sel,.node.sel:hover{box-shadow:0 0 0 1px var(--fg),0 0 0 6px var(--halo)}
+.node.member{padding:12px 24px;font-size:17px;font-weight:600;overflow-wrap:anywhere}
+.node.panel{border-color:transparent;padding:5px 9px;font-size:13px;color:var(--dim);max-width:170px;overflow-wrap:anywhere}
+.node.panel:hover,.node.panel.sel{color:var(--fg)}
+.node.panel.sel{box-shadow:0 0 0 5px var(--halo)}
+.node.lead .nm{font-weight:600;overflow-wrap:anywhere}
+.node .sub{font-size:12px;color:var(--dim);overflow-wrap:anywhere}
+.node.step{padding:6px 16px;white-space:nowrap}
+.node.step .lbl{font-size:11px;color:var(--dim)}
+.node.step .dt{font-size:13px;font-variant-numeric:tabular-nums}
+.node.step.in{background:var(--fg);color:var(--bg)}
+.node.step.in .lbl{color:var(--ink-dim)}
+.up{top:-8px}
+.down{top:8px}
+.tail{position:relative;flex:none;display:flex;align-items:center;gap:11px;font-size:12px;color:var(--dim);border-radius:999px}
+.tail .tip{flex:none;width:58px;height:30px;border-radius:999px}
+.tail:hover .tip,.tail.sel .tip{background:var(--halo)}
+.tail .note{max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tail:hover .note,.tail.sel .note{color:var(--fg)}
+.tail.end{width:28px;height:28px;border:1px solid currentColor;display:grid;place-items:center;font-size:14px}
+.tail.end:hover,.tail.end.sel{box-shadow:0 0 0 5px var(--halo)}
+.tail.ok{color:var(--ok)}
+.tail.no{color:var(--no)}
+
+/* floating panel */
+.drawer{position:fixed;z-index:10;top:calc(14px + env(safe-area-inset-top,0px));right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(var(--drawer),calc(100% - 28px));background:var(--sheet);border:1px solid var(--hair);border-radius:26px;display:flex;flex-direction:column;overflow:hidden}
+.drawer-head{display:flex;align-items:center;gap:12px;padding:16px 16px 4px 24px}
+.kicker{flex:1;min-width:0;font-size:13px;color:var(--dim);overflow-wrap:anywhere}
+.x{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--dim)}
+.x:hover{background:var(--halo);color:var(--fg)}
+.drawer-body{flex:1;overflow-y:auto;padding:10px 24px 24px;display:flex;flex-direction:column;gap:18px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label,.lab{font-size:12px;color:var(--dim)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+input,select{width:100%;min-width:0;background:transparent;border:0;border-bottom:1px solid var(--hair);border-radius:0;padding:6px 0}
+input.big{font-size:21px;font-weight:600}
+textarea{width:100%;background:transparent;border:1px solid var(--hair);border-radius:18px;padding:12px 15px;resize:vertical;min-height:70px;line-height:1.5}
+textarea.verbatim{min-height:300px;font-size:14px}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--fg)}
+input:disabled,select:disabled,textarea:disabled{color:var(--dim);opacity:1}
+.inline{display:flex;gap:12px;align-items:baseline}
+.inline > input{flex:1}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--faint);border-radius:999px;padding:6px 15px;font-size:13px;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--fg)}
+.btn.good{border-color:var(--ok);color:var(--ok)}
+.btn.bad{border-color:var(--no);color:var(--no)}
+.btn.good:hover:not(:disabled),.btn.bad:hover:not(:disabled){box-shadow:0 0 0 4px var(--halo)}
+a.textbtn{white-space:nowrap}
+.end-row{margin-top:auto;padding-top:8px}
+@media (max-width:600px){input,select,textarea{font-size:16px}input.big{font-size:21px}}
+
+.toast{position:fixed;left:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:20;max-width:min(420px,calc(100% - 40px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:18px;font-size:13px}
+</style>
+
+<svg class="defs" aria-hidden="true" width="0" height="0"><defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="ahp" d="M1.5 1 L8.5 5 L1.5 9"/></marker>
+</defs></svg>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Emergent</div>
+    <span class="status" id="status" role="status"></span>
+    <nav class="nav" aria-label="View">
+      <button type="button" id="v-team" aria-pressed="true">Team</button>
+      <button type="button" id="v-all" aria-pressed="false">Overview</button>
+    </nav>
+  </header>
+  <main id="main"><p class="quiet">Loading the team's outreach. Each person and the flow of every lead they are reaching out to will appear here.</p></main>
+</div>
+<aside class="drawer" id="drawer" aria-label="Details" hidden></aside>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var LOCAL_KEY = 'emergent-crm-data-v1';
+  var PREF_KEY = 'emergent-crm-prefs-v2';
+  var DOT = ' \u00b7 ';
+  var NS = 'http://www.w3.org/2000/svg';
+
+  var STATUSES = [['', 'No status yet'], ['interested', 'Interested'], ['more-info', 'Wants more info'], ['confirmed', 'Confirmed'], ['declined', 'Declined']];
+  var OUTCOMES = [['open', 'In progress'], ['confirmed', 'Confirmed'], ['declined', 'Declined'], ['noresponse', 'No response']];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var ICONS = {
+    check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.6l3 3L12.8 4.8"/></svg>',
+    x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.3 4.3l7.4 7.4M11.7 4.3l-7.4 7.4"/></svg>'
+  };
+
+  var S = {
+    members: new Map(), leads: new Map(),
+    view: { name: 'team' }, drawer: null, drawerForce: false,
+    mode: 'loading', ready: false, canWrite: true, canKnown: null
+  };
+  var db = null;
+  var chains = {};
+  var toastTimer = null;
+
+  /* ---------- small helpers ---------- */
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function h(tag, props) {
+    var el = document.createElement(tag), k, v;
+    if (props) for (k in props) {
+      v = props[k];
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'disabled' || k === 'hidden') el[k] = !!v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    var kids = Array.prototype.slice.call(arguments, 2);
+    (function add(list) {
+      list.forEach(function (kid) {
+        if (kid == null || kid === false) return;
+        if (Array.isArray(kid)) return add(kid);
+        el.appendChild(kid.nodeType ? kid : document.createTextNode(String(kid)));
+      });
+    })(kids);
+    return el;
+  }
+  function svgEl(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function icon(name) { var s = h('span', { class: 'ic', 'aria-hidden': 'true' }); s.innerHTML = ICONS[name]; return s; }
+  function uid(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function parseDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+  function fmtDate(s) {
+    var d = parseDate(s);
+    if (!d) return 'No date';
+    return MONTHS[d.getMonth()] + ' ' + d.getDate() + (d.getFullYear() !== new Date().getFullYear() ? ', ' + d.getFullYear() : '');
+  }
+  function daysSince(s) {
+    var d = parseDate(s);
+    if (!d) return null;
+    var n = new Date(); n = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    return Math.round((n - d) / 86400000);
+  }
+  function ord(n) {
+    var v = n % 100, s = (v > 10 && v < 14) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
+    return n + s;
+  }
+  function labelOf(list, key) { for (var i = 0; i < list.length; i++) if (list[i][0] === key) return list[i][1]; return ''; }
+  function safeUrl(v) {
+    v = (v || '').trim();
+    if (!v) return null;
+    if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+    try { var u = new URL(v); return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null; } catch (e) { return null; }
+  }
+  function toast(msg) {
+    var t = $('#toast');
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 5000);
+  }
+
+  /* ---------- prefs (per viewer, this browser only) ---------- */
+  function loadPrefs() {
+    try { var p = JSON.parse(localStorage.getItem(PREF_KEY) || '{}'); if (p.view && p.view.name) S.view = p.view; } catch (e) {}
+  }
+  function savePrefs() {
+    try { localStorage.setItem(PREF_KEY, JSON.stringify({ view: S.view })); } catch (e) {}
+  }
+
+  /* ---------- data access ---------- */
+  function memberList() {
+    var out = [];
+    S.members.forEach(function (m, id) { out.push(Object.assign({ id: id }, m)); });
+    return out.sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+  }
+  function leadList(memberId, panelId) {
+    var out = [];
+    S.leads.forEach(function (l, id) {
+      if (memberId && l.memberId !== memberId) return;
+      if (panelId && l.panelId !== panelId) return;
+      out.push(Object.assign({ id: id }, l));
+    });
+    return out.sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+  }
+  function analyse(lead) {
+    var steps = Array.isArray(lead.steps) ? lead.steps : [];
+    var c = 0, r = 0;
+    var items = steps.map(function (s) {
+      if (s.type === 'response') { r++; return { s: s, label: ord(r) + ' response' }; }
+      c++; return { s: s, label: ord(c) + ' contact' };
+    });
+    var last = steps.length ? steps[steps.length - 1] : null;
+    var o = lead.outcome || 'open', state;
+    if (o === 'confirmed') state = 'ok';
+    else if (o === 'declined' || o === 'noresponse') state = 'no';
+    else if (!last || last.type === 'response') state = 'todo';
+    else state = 'wait';
+    return { items: items, contacts: c, responses: r, last: last, state: state };
+  }
+
+  /* ---------- persistence ---------- */
+  function serial(key, fn) {
+    var p = (chains[key] || Promise.resolve()).then(fn, fn);
+    chains[key] = p.catch(function () {});
+    return p;
+  }
+  function saveLocal() {
+    try {
+      var out = { members: {}, leads: {} };
+      S.members.forEach(function (v, k) { out.members[k] = v; });
+      S.leads.forEach(function (v, k) { out.leads[k] = v; });
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(out));
+    } catch (e) { toast('This browser would not save the change.'); }
+  }
+  function loadLocal() {
+    try {
+      var d = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}');
+      Object.keys(d.members || {}).forEach(function (k) { S.members.set(k, d.members[k]); });
+      Object.keys(d.leads || {}).forEach(function (k) { S.leads.set(k, d.leads[k]); });
+    } catch (e) {}
+  }
+  function persist(coll, id, op, data, queueKey) {
+    if (S.mode === 'local') { saveLocal(); return; }
+    if (!db) return;
+    var ref = db.collection(coll).doc(id);
+    var run = function () { return op === 'set' ? ref.set(data) : op === 'update' ? ref.update(data) : ref.delete(); };
+    serial(queueKey || coll + '/' + id, function () {
+      return run().catch(function (e) {
+        if (e && e.code === 'unavailable') {
+          return new Promise(function (res) { setTimeout(res, 400 + Math.random() * 800); }).then(run);
+        }
+        throw e;
+      });
+    }).then(null, writeFailed);
+  }
+  function writeFailed(e) {
+    var code = e && e.code;
+    if (code === 'quota_exceeded') toast('Storage is full. Delete some leads to make room.');
+    else if (code === 'resource_exhausted') toast('Saving too fast. Wait a moment and try again.');
+    else if ((code === 'invalid_argument' && S.canKnown !== true) || code === 'not_granted' || code === 'revoked') {
+      S.canWrite = false;
+      toast('That change was not saved. You have view access only.');
+    } else toast('Could not save that change. Check your connection and try again.');
+    refetch();
+  }
+  function refetch() {
+    if (!db) return;
+    Promise.all([db.collection('members').limit(1000).get(), db.collection('leads').limit(1000).get()]).then(function (r) {
+      S.members = snapToMap(r[0]); S.leads = snapToMap(r[1]); render();
+    }, function () { render(); });
+  }
+  function snapToMap(snap) {
+    var m = new Map();
+    snap.docs.forEach(function (d) { var v = d.data(); if (v) m.set(d.id, clone(v)); });
+    return m;
+  }
+  function putDoc(coll, id, data) {
+    if (!S.canWrite) return;
+    S[coll].set(id, data); persist(coll, id, 'set', data); render();
+  }
+  function patchDoc(coll, id, patch) {
+    if (!S.canWrite) return;
+    var cur = S[coll].get(id);
+    if (!cur) return;
+    S[coll].set(id, Object.assign({}, cur, patch)); persist(coll, id, 'update', patch); render();
+  }
+  function delDoc(coll, id, queueKey, quiet) {
+    if (!S.canWrite) return;
+    S[coll].delete(id); persist(coll, id, 'delete', null, queueKey);
+    if (!quiet) render();
+  }
+
+  /* ---------- actions ---------- */
+  function setView(v) { S.view = v; savePrefs(); window.scrollTo(0, 0); render(); }
+  function openDrawer(d) { S.drawer = d; S.drawerForce = true; render(); }
+  function closeDrawer() { S.drawer = null; S.drawerForce = true; render(); }
+
+  function addMember() {
+    var id = uid('m');
+    S.drawer = { kind: 'member', memberId: id, focus: 'f-mname' }; S.drawerForce = true;
+    putDoc('members', id, { name: '', panels: [], order: Date.now() });
+  }
+  function addPanel(memberId) {
+    var m = S.members.get(memberId);
+    if (!m) return;
+    var pid = uid('p');
+    S.drawer = { kind: 'panel', memberId: memberId, panelId: pid, focus: 'f-pname' }; S.drawerForce = true;
+    patchDoc('members', memberId, { panels: (m.panels || []).concat([{ id: pid, name: '' }]) });
+  }
+  function renamePanel(memberId, panelId, name) {
+    var m = S.members.get(memberId);
+    if (!m) return;
+    patchDoc('members', memberId, { panels: (m.panels || []).map(function (p) { return p.id === panelId ? Object.assign({}, p, { name: name }) : p; }) });
+  }
+  function removePanel(memberId, panelId) {
+    var m = S.members.get(memberId);
+    if (!m) return;
+    S.drawer = null; S.drawerForce = true;
+    patchDoc('members', memberId, { panels: (m.panels || []).filter(function (p) { return p.id !== panelId; }) });
+  }
+  function deleteMember(memberId) {
+    leadList(memberId).forEach(function (l) { delDoc('leads', l.id, 'bulk', true); });
+    S.drawer = null; S.drawerForce = true;
+    if (S.view.name === 'member' && S.view.memberId === memberId) S.view = { name: 'team' };
+    delDoc('members', memberId, 'bulk');
+  }
+  function addLead(memberId, panelId) {
+    var id = uid('l');
+    S.drawer = { kind: 'lead', leadId: id, focus: 'f-name' }; S.drawerForce = true;
+    putDoc('leads', id, {
+      memberId: memberId, panelId: panelId || '', name: '', company: '', role: '', linkedin: '',
+      interests: '', hobbies: '', outcome: 'open', steps: [], nextNote: '', createdAt: Date.now()
+    });
+  }
+  function deleteLead(id) { S.drawer = null; S.drawerForce = true; delDoc('leads', id); }
+  function addStep(leadId, type) {
+    var l = S.leads.get(leadId);
+    if (!l) return;
+    var step = { id: uid('s'), type: type, date: today(), body: '', status: '' };
+    S.drawer = { kind: 'step', leadId: leadId, stepId: step.id, focus: 'f-body' }; S.drawerForce = true;
+    patchDoc('leads', leadId, { steps: (l.steps || []).concat([step]), outcome: 'open' });
+  }
+  function patchStep(leadId, stepId, patch) {
+    var l = S.leads.get(leadId);
+    if (!l) return;
+    var steps = (l.steps || []).map(function (s) { return s.id === stepId ? Object.assign({}, s, patch) : s; });
+    var out = { steps: steps };
+    // The latest response decides the lead: confirmed or declined closes it, anything else reopens it.
+    var lastResp = null;
+    steps.forEach(function (s) { if (s.type === 'response') lastResp = s; });
+    if (('status' in patch || 'type' in patch) && lastResp && lastResp.id === stepId) {
+      if (lastResp.status === 'confirmed') out.outcome = 'confirmed';
+      else if (lastResp.status === 'declined') out.outcome = 'declined';
+      else if (l.outcome === 'confirmed' || l.outcome === 'declined') out.outcome = 'open';
+    }
+    patchDoc('leads', leadId, out);
+  }
+  function deleteStep(leadId, stepId) {
+    var l = S.leads.get(leadId);
+    if (!l) return;
+    S.drawer = { kind: 'tail', leadId: leadId }; S.drawerForce = true;
+    patchDoc('leads', leadId, { steps: (l.steps || []).filter(function (s) { return s.id !== stepId; }) });
+  }
+  function setOutcome(leadId, outcome) { S.drawerForce = true; patchDoc('leads', leadId, { outcome: outcome }); }
+  function clearExamples() {
+    S.leads.forEach(function (l, id) { if (l.demo) delDoc('leads', id, 'bulk', true); });
+    S.members.forEach(function (m, id) {
+      if (!m.demo) return;
+      if (leadList(id).length) { S.members.set(id, Object.assign({}, m, { demo: false })); persist('members', id, 'update', { demo: false }, 'bulk'); }
+      else delDoc('members', id, 'bulk', true);
+    });
+    S.drawer = null; S.drawerForce = true; S.view = { name: 'team' };
+    render();
+  }
+
+  /* ---------- the flow ---------- */
+  function confirmBtn(label, armedLabel, fn) {
+    var armed = false, timer = null;
+    var b = h('button', { type: 'button', class: 'textbtn danger', text: label });
+    b.addEventListener('click', function () {
+      if (armed) { clearTimeout(timer); fn(); return; }
+      armed = true; b.textContent = armedLabel; b.classList.add('armed');
+      timer = setTimeout(function () { armed = false; b.textContent = label; b.classList.remove('armed'); }, 4000);
+    });
+    return b;
+  }
+  function addBtn(label, fn) { return h('button', { type: 'button', class: 'add', onclick: fn }, label); }
+  function isSel(kind, a, b) {
+    var d = S.drawer;
+    if (!d || d.kind !== kind) return false;
+    if (kind === 'member') return d.memberId === a;
+    if (kind === 'panel') return d.memberId === a && d.panelId === b;
+    if (kind === 'step') return d.leadId === a && d.stepId === b;
+    return d.leadId === a;
+  }
+  function chain(lead) {
+    var a = analyse(lead), els = [];
+    els.push(h('button', {
+      type: 'button', class: 'node lead' + (isSel('lead', lead.id) ? ' sel' : ''),
+      onclick: function () { openDrawer({ kind: 'lead', leadId: lead.id }); }
+    },
+      h('span', { class: 'nm', text: lead.name || 'New lead' }),
+      (lead.company || lead.role) ? h('span', { class: 'sub', text: [lead.company, lead.role].filter(Boolean).join(DOT) }) : null));
+    a.items.forEach(function (it) {
+      var s = it.s, inbound = s.type === 'response';
+      var st = inbound && s.status ? DOT + labelOf(STATUSES, s.status).toLowerCase() : '';
+      els.push(h('button', {
+        type: 'button', class: 'node step ' + (inbound ? 'in down' : 'out up') + (isSel('step', lead.id, s.id) ? ' sel' : ''),
+        onclick: function () { openDrawer({ kind: 'step', leadId: lead.id, stepId: s.id }); }
+      }, h('span', { class: 'lbl', text: it.label }), h('span', { class: 'dt', text: fmtDate(s.date) + st })));
+    });
+    var open = function () { openDrawer({ kind: 'tail', leadId: lead.id }); };
+    var sel = isSel('tail', lead.id) ? ' sel' : '';
+    if (a.state === 'todo') {
+      els.push(h('button', { type: 'button', class: 'tail up' + sel, 'aria-label': 'Your move. Open next step', onclick: open },
+        h('span', { class: 'tip' }), lead.nextNote ? h('span', { class: 'note', text: lead.nextNote }) : null));
+    } else if (a.state === 'wait') {
+      var d = daysSince(a.last.date);
+      var txt = [d == null ? '' : d <= 0 ? 'today' : d + 'd', lead.nextNote || ''].filter(Boolean).join(DOT);
+      els.push(h('button', { type: 'button', class: 'tail down' + sel, 'data-wire': 'wait', 'aria-label': 'Waiting on a reply. Open next step', onclick: open },
+        h('span', { class: 'tip' }), txt ? h('span', { class: 'note', text: txt }) : null));
+    } else {
+      var label = labelOf(OUTCOMES, lead.outcome);
+      els.push(h('button', { type: 'button', class: 'tail end ' + a.state + sel, title: label, 'aria-label': label, onclick: open },
+        icon(a.state === 'ok' ? 'check' : 'x')));
+    }
+    return h('div', { class: 'chain' }, els);
+  }
+  function memberBranch(m) {
+    var kids = [], known = {};
+    (m.panels || []).forEach(function (p) {
+      known[p.id] = true;
+      var sub = leadList(m.id, p.id).map(chain);
+      if (S.canWrite) sub.push(addBtn('+ lead', function () { addLead(m.id, p.id); }));
+      kids.push(h('div', { class: 'branch' },
+        h('button', { type: 'button', class: 'node panel' + (isSel('panel', m.id, p.id) ? ' sel' : ''), text: p.name || 'New panel',
+          onclick: function () { openDrawer({ kind: 'panel', memberId: m.id, panelId: p.id }); } }),
+        h('div', { class: 'kids' }, sub)));
+    });
+    leadList(m.id).forEach(function (l) { if (!known[l.panelId]) kids.push(chain(l)); });
+    if (S.canWrite) kids.push(addBtn('+ panel', function () { addPanel(m.id); }));
+    return h('div', { class: 'branch' },
+      h('button', { type: 'button', class: 'node member' + (isSel('member', m.id) ? ' sel' : ''), text: m.name || 'New person',
+        onclick: function () { openDrawer({ kind: 'member', memberId: m.id }); } }),
+      h('div', { class: 'kids' }, kids));
+  }
+  function flow(branches) {
+    return h('div', { class: 'scroller' }, h('div', { class: 'flow' }, svgEl('svg', { class: 'wires', 'aria-hidden': 'true' }), branches));
+  }
+  function drawWires() {
+    var fl = $('.flow');
+    if (!fl) return;
+    var svg = $('.wires', fl), fr = fl.getBoundingClientRect(), out = [];
+    svg.setAttribute('width', Math.ceil(fl.scrollWidth));
+    svg.setAttribute('height', Math.ceil(fl.scrollHeight));
+    function n(v) { return Math.round(v * 10) / 10; }
+    function edge(el, right) { var r = el.getBoundingClientRect(); return { x: (right ? r.right : r.left) - fr.left, y: r.top + r.height / 2 - fr.top }; }
+    function wire(a, b, kind) {
+      var x1 = a.x + 2, y1 = a.y, x2 = b.x - (kind === 'wait' ? 4 : 5), y2 = b.y, dx = x2 - x1;
+      if (dx < 6) return;
+      var c = Math.max(14, dx * 0.5), bow = (kind !== 'tree' && Math.abs(y2 - y1) < 1) ? -8 : 0;
+      var p = svgEl('path', { d: 'M' + n(x1) + ' ' + n(y1) + ' C' + n(x1 + c) + ' ' + n(y1 + bow) + ' ' + n(x2 - c) + ' ' + n(y2 + bow) + ' ' + n(x2) + ' ' + n(y2) });
+      if (kind === 'wait') { p.setAttribute('class', 'w-wait'); out.push(p, svgEl('circle', { cx: n(x2 + 3.5), cy: n(y2), r: 3 })); }
+      else { p.setAttribute('marker-end', 'url(#ah)'); out.push(p); }
+    }
+    fl.querySelectorAll('.branch').forEach(function (br) {
+      var node = br.children[0], kids = br.children[1];
+      if (!kids) return;
+      Array.prototype.forEach.call(kids.children, function (k) {
+        if (k.classList.contains('branch') || k.classList.contains('chain')) wire(edge(node, true), edge(k.children[0], false), 'tree');
+      });
+    });
+    fl.querySelectorAll('.chain').forEach(function (ch) {
+      for (var i = 0; i < ch.children.length - 1; i++) {
+        var a = ch.children[i], b = ch.children[i + 1], tip = b.querySelector('.tip');
+        wire(edge(a, true), tip ? edge(tip, true) : edge(b, false), b.getAttribute('data-wire') || '');
+      }
+    });
+    svg.replaceChildren.apply(svg, out);
+  }
+
+  /* ---------- views ---------- */
+  function teamView() {
+    var ms = memberList();
+    var pills = ms.map(function (m) {
+      var panels = (m.panels || []).map(function (p) { return p.name || 'New panel'; }).join(DOT);
+      return h('button', { type: 'button', class: 'person', onclick: function () { setView({ name: 'member', memberId: m.id }); } },
+        h('span', { class: 'nm', text: m.name || 'New person' }),
+        panels ? h('span', { class: 'sub', text: panels }) : null);
+    });
+    if (S.canWrite) pills.push(addBtn('+ person', addMember));
+    var out = [];
+    if (!ms.length) out.push(h('p', { class: 'quiet', text: 'No one here yet. Add a person, then their panels and the leads they are reaching out to.' }));
+    out.push(h('div', { class: 'people' }, pills));
+    return out;
+  }
+  function memberView(v) {
+    return [flow([memberBranch(Object.assign({ id: v.memberId }, S.members.get(v.memberId)))])];
+  }
+  function allView() {
+    var ms = memberList();
+    if (!ms.length && !S.leads.size) return teamView();
+    var branches = ms.map(memberBranch);
+    var stray = leadList().filter(function (l) { return !S.members.has(l.memberId); });
+    if (stray.length) {
+      branches.push(h('div', { class: 'branch' }, h('span', { class: 'node panel', text: 'Unassigned' }), h('div', { class: 'kids' }, stray.map(chain))));
+    }
+    if (S.canWrite) branches.push(addBtn('+ person', addMember));
+    return [flow(branches)];
+  }
+  function viewContent() {
+    if (S.mode === 'loading' || (S.mode === 'shared' && !S.ready)) {
+      return [h('p', { class: 'quiet', text: 'Loading the team\u2019s outreach. Each person and the flow of every lead they are reaching out to will appear here.' })];
+    }
+    if (S.mode === 'offline') {
+      return [h('p', { class: 'quiet', text: 'The shared data is not available in this view. Open this page while signed in to claude.ai to see the team\u2019s outreach.' })];
+    }
+    if (S.view.name === 'member' && !S.members.has(S.view.memberId)) S.view = { name: 'team' };
+    var out = S.view.name === 'member' ? memberView(S.view) : S.view.name === 'all' ? allView() : teamView();
+    var demo = false;
+    S.members.forEach(function (m) { if (m.demo) demo = true; });
+    S.leads.forEach(function (l) { if (l.demo) demo = true; });
+    if (demo) {
+      out.push(h('div', { class: 'foot' }, 'These people and emails are made-up examples.',
+        S.canWrite ? confirmBtn('Clear them', 'Click again to remove every example', clearExamples) : null));
+    }
+    return out;
+  }
+
+  /* ---------- floating panel ---------- */
+  function bind(el, get, commit) {
+    var timer = null;
+    function fire() { clearTimeout(timer); timer = null; if (el.value !== get()) commit(el.value); }
+    el.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(fire, 800); });
+    el.addEventListener('change', fire);
+    el.addEventListener('blur', fire);
+  }
+  function textField(id, label, get, commit, o) {
+    o = o || {};
+    var inp = h(o.area ? 'textarea' : 'input', {
+      id: id, type: o.area ? null : (o.type || 'text'), class: o.cls, rows: o.rows, placeholder: o.bare ? label : o.placeholder,
+      'aria-label': o.bare ? label : null, disabled: !S.canWrite, autocomplete: 'off', spellcheck: o.area ? 'true' : 'false'
+    });
+    inp.value = get();
+    bind(inp, get, commit);
+    return h('div', { class: 'field' }, o.bare ? null : h('label', { for: id, text: label }), inp);
+  }
+  function selectField(id, label, options, value, commit) {
+    var sel = h('select', { id: id, disabled: !S.canWrite });
+    options.forEach(function (o) {
+      if (o.group) {
+        var g = h('optgroup', { label: o.group });
+        o.options.forEach(function (x) { g.appendChild(h('option', { value: x[0], text: x[1] })); });
+        sel.appendChild(g);
+      } else sel.appendChild(h('option', { value: o[0], text: o[1] }));
+    });
+    sel.value = value;
+    sel.addEventListener('change', function () { commit(sel.value); });
+    return h('div', { class: 'field' }, h('label', { for: id, text: label }), sel);
+  }
+  function sheet(kicker, body) {
+    return [
+      h('div', { class: 'drawer-head' }, h('span', { class: 'kicker', text: kicker }),
+        h('button', { type: 'button', class: 'x', 'aria-label': 'Close', onclick: closeDrawer }, icon('x'))),
+      h('div', { class: 'drawer-body' }, body)
+    ];
+  }
+  function leadField(id, key) {
+    return {
+      get: function () { var l = S.leads.get(id); return (l && l[key]) || ''; },
+      set: function (v) { var p = {}; p[key] = v; patchDoc('leads', id, p); }
+    };
+  }
+  function leadDrawer(id, lead) {
+    var f = function (k) { return leadField(id, k); };
+    var link = h('a', { class: 'textbtn', target: '_blank', rel: 'noopener noreferrer', text: 'Open' });
+    var syncLink = function () { var u = safeUrl((S.leads.get(id) || {}).linkedin); link.hidden = !u; if (u) link.href = u; };
+    syncLink();
+    var li = f('linkedin');
+    var liInput = h('input', { id: 'f-linkedin', type: 'text', disabled: !S.canWrite, autocomplete: 'off', spellcheck: 'false' });
+    liInput.value = li.get();
+    bind(liInput, li.get, function (v) { li.set(v); syncLink(); });
+    var assign = memberList().map(function (m) {
+      var opts = (m.panels || []).map(function (p) { return [m.id + '|' + p.id, p.name || 'New panel']; });
+      if (!opts.length) opts = [[m.id + '|', 'No panel']];
+      return { group: m.name || 'New person', options: opts };
+    });
+    var cur = lead.memberId + '|' + (lead.panelId || '');
+    if (!assign.some(function (g) { return g.options.some(function (o) { return o[0] === cur; }); })) assign.unshift([cur, 'Unassigned']);
+    return sheet('Lead', [
+      textField('f-name', 'Name', f('name').get, f('name').set, { bare: true, cls: 'big' }),
+      h('div', { class: 'pair' },
+        textField('f-company', 'Company', f('company').get, f('company').set, { bare: true }),
+        textField('f-role', 'Role', f('role').get, f('role').set, { bare: true })),
+      h('div', { class: 'field' }, h('label', { for: 'f-linkedin', text: 'LinkedIn' }), h('div', { class: 'inline' }, liInput, link)),
+      textField('f-interests', 'Interests', f('interests').get, f('interests').set, { area: true, rows: 3 }),
+      textField('f-hobbies', 'Hobbies', f('hobbies').get, f('hobbies').set, { area: true, rows: 3 }),
+      h('div', { class: 'pair' },
+        selectField('f-outcome', 'Status', OUTCOMES, lead.outcome || 'open', function (v) { setOutcome(id, v); }),
+        selectField('f-assign', 'Panel', assign, cur, function (v) {
+          var parts = v.split('|');
+          patchDoc('leads', id, { memberId: parts[0], panelId: parts[1] || '' });
+        })),
+      S.canWrite ? h('div', { class: 'end-row' }, confirmBtn('Delete lead', 'Click again to delete this lead', function () { deleteLead(id); })) : null
+    ]);
+  }
+  function stepDrawer(id, lead, stepId) {
+    var a = analyse(lead), it = null;
+    a.items.forEach(function (x) { if (x.s.id === stepId) it = x; });
+    if (!it) return null;
+    var s = it.s, inbound = s.type === 'response';
+    var get = function (k) { return function () {
+      var l = S.leads.get(id), st = l && (l.steps || []).filter(function (x) { return x.id === stepId; })[0];
+      return (st && st[k]) || '';
+    }; };
+    var set = function (k) { return function (v) { var p = {}; p[k] = v; patchStep(id, stepId, p); }; };
+    return sheet(it.label + DOT + (lead.name || 'New lead'), [
+      h('div', { class: 'pair' },
+        textField('f-date', 'Date', get('date'), set('date'), { type: 'date' }),
+        selectField('f-type', 'Direction', [['contact', 'Sent by us'], ['response', 'Their response']], inbound ? 'response' : 'contact', function (v) { S.drawerForce = true; set('type')(v); })),
+      inbound ? selectField('f-status', 'Where they stand', STATUSES, s.status || '', function (v) { S.drawerForce = true; set('status')(v); }) : null,
+      textField('f-body', inbound ? 'Paste their reply here, word for word' : 'Paste the email you sent here, word for word', get('body'), set('body'), { area: true, bare: true, cls: 'verbatim' }),
+      S.canWrite ? h('div', { class: 'end-row' }, confirmBtn('Delete this step', 'Click again to delete this step', function () { deleteStep(id, stepId); })) : null
+    ]);
+  }
+  function tailDrawer(id, lead) {
+    var a = analyse(lead), note = leadField(id, 'nextNote');
+    var explain = {
+      ok: 'Confirmed.',
+      no: lead.outcome === 'declined' ? 'Declined. This flow ends here.' : 'No response. This flow ends here.',
+      todo: a.last ? 'They replied and nothing has gone back yet. Your move.' : 'Nothing has been sent yet.',
+      wait: 'Waiting on a reply' + (a.last && a.last.date ? ' since ' + fmtDate(a.last.date) : '') + '.'
+    }[a.state];
+    var btn = function (label, fn, cls) { return h('button', { type: 'button', class: 'btn ' + (cls || ''), onclick: fn }, label); };
+    var acts = [];
+    if (S.canWrite) {
+      if (a.state === 'wait') {
+        acts.push(btn('They replied', function () { addStep(id, 'response'); }));
+        acts.push(btn('Sent a follow-up', function () { addStep(id, 'contact'); }));
+        acts.push(btn('No response', function () { setOutcome(id, 'noresponse'); }, 'bad'));
+      } else if (a.state === 'todo') {
+        acts.push(btn('Sent ' + ord(a.contacts + 1) + ' contact', function () { addStep(id, 'contact'); }));
+        if (a.contacts) acts.push(btn('They replied again', function () { addStep(id, 'response'); }));
+      }
+      if (a.state === 'todo' || a.state === 'wait') {
+        acts.push(btn('Confirmed', function () { setOutcome(id, 'confirmed'); }, 'good'));
+        acts.push(btn('Declined', function () { setOutcome(id, 'declined'); }, 'bad'));
+      } else acts.push(btn('Reopen', function () { setOutcome(id, 'open'); }));
+    }
+    return sheet('Next' + DOT + (lead.name || 'New lead'), [
+      h('p', { class: 'dim', text: explain }),
+      textField('f-note', 'Note to self: what needs to be sent or said next', note.get, note.set, { area: true, bare: true, rows: 5 }),
+      acts.length ? h('div', { class: 'actions' }, acts) : null
+    ]);
+  }
+  function memberDrawer(id) {
+    var n = leadList(id).length;
+    var name = {
+      get: function () { var x = S.members.get(id); return (x && x.name) || ''; },
+      set: function (v) { patchDoc('members', id, { name: v }); }
+    };
+    return sheet('Team member', [
+      textField('f-mname', 'Name', name.get, name.set, { bare: true, cls: 'big' }),
+      S.canWrite ? h('div', { class: 'end-row' }, confirmBtn('Delete person',
+        n ? 'Click again to delete them and their ' + n + (n === 1 ? ' lead' : ' leads') : 'Click again to delete', function () { deleteMember(id); })) : null
+    ]);
+  }
+  function panelDrawer(memberId, m, panelId) {
+    var p = (m.panels || []).filter(function (x) { return x.id === panelId; })[0];
+    if (!p) return null;
+    var n = leadList(memberId, panelId).length;
+    var get = function () {
+      var x = S.members.get(memberId), pp = x && (x.panels || []).filter(function (q) { return q.id === panelId; })[0];
+      return (pp && pp.name) || '';
+    };
+    return sheet('Panel' + DOT + (m.name || 'New person'), [
+      textField('f-pname', 'Panel name', get, function (v) { renamePanel(memberId, panelId, v); }, { bare: true, cls: 'big' }),
+      !S.canWrite ? null : n
+        ? h('p', { class: 'dim end-row', text: 'Move or delete its ' + n + (n === 1 ? ' lead' : ' leads') + ' to remove this panel.' })
+        : h('div', { class: 'end-row' }, confirmBtn('Remove panel', 'Click again to remove', function () { removePanel(memberId, panelId); }))
+    ]);
+  }
+  function drawerContent(d) {
+    if (d.kind === 'member' || d.kind === 'panel') {
+      var m = S.members.get(d.memberId);
+      if (!m) return null;
+      return d.kind === 'member' ? memberDrawer(d.memberId) : panelDrawer(d.memberId, m, d.panelId);
+    }
+    var lead = S.leads.get(d.leadId);
+    if (!lead) return null;
+    if (d.kind === 'lead') return leadDrawer(d.leadId, lead);
+    if (d.kind === 'step') return stepDrawer(d.leadId, lead, d.stepId);
+    return tailDrawer(d.leadId, lead);
+  }
+  function renderDrawer(force) {
+    var el = $('#drawer'), d = S.drawer;
+    document.body.classList.toggle('has-drawer', !!d);
+    if (!d) { el.hidden = true; el.replaceChildren(); el.removeAttribute('data-sig'); return; }
+    var sig = [d.kind, d.leadId || '', d.stepId || '', d.memberId || '', d.panelId || ''].join('|');
+    var act = document.activeElement, inside = act && el.contains(act);
+    var typing = inside && (act.tagName === 'INPUT' || act.tagName === 'TEXTAREA');
+    if (!force && typing && el.getAttribute('data-sig') === sig) return;
+    var content = drawerContent(d);
+    if (!content) { S.drawer = null; return renderDrawer(true); }
+    var same = el.getAttribute('data-sig') === sig;
+    var keepId = inside && same ? act.id : null;
+    var oldBody = $('.drawer-body', el), top = oldBody && same ? oldBody.scrollTop : 0;
+    el.hidden = false; el.setAttribute('data-sig', sig);
+    el.replaceChildren.apply(el, content);
+    $('.drawer-body', el).scrollTop = top;
+    var target = d.focus || keepId;
+    d.focus = null;
+    if (target) { var f = document.getElementById(target); if (f && !f.disabled) f.focus(); }
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    var main = $('#main'), sc = $('.scroller', main), left = sc ? sc.scrollLeft : 0, key = main.getAttribute('data-view');
+    var content = viewContent();
+    var now = S.view.name + (S.view.memberId || '');
+    $('#v-team').setAttribute('aria-pressed', String(S.view.name === 'team'));
+    $('#v-all').setAttribute('aria-pressed', String(S.view.name === 'all'));
+    $('#status').textContent = S.mode === 'local' ? 'Local copy, saved in this browser only' : S.mode === 'shared' && S.ready && !S.canWrite ? 'View only' : '';
+    main.setAttribute('data-view', now);
+    main.replaceChildren.apply(main, content);
+    var force = S.drawerForce; S.drawerForce = false;
+    renderDrawer(force);
+    sc = $('.scroller', main);
+    if (sc && key === now) sc.scrollLeft = left;
+    drawWires();
+  }
+
+  /* ---------- boot ---------- */
+  function subscribe() {
+    var got = { members: false, leads: false };
+    var dead = function () { if (!S.ready) { S.mode = 'offline'; S.canWrite = false; } else toast('Live updates stopped. Reload the page to reconnect.'); render(); };
+    ['members', 'leads'].forEach(function (coll) {
+      db.collection(coll).limit(1000).onSnapshot(function (snap) {
+        S[coll] = snapToMap(snap);
+        got[coll] = true;
+        if (got.members && got.leads) S.ready = true;
+        render();
+      }, dead);
+    });
+  }
+  function boot() {
+    loadPrefs();
+    $('#v-team').addEventListener('click', function () { setView({ name: 'team' }); });
+    $('#v-all').addEventListener('click', function () { setView({ name: 'all' }); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.drawer) closeDrawer(); });
+    window.addEventListener('resize', drawWires);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawWires);
+    if (window.ResizeObserver) new ResizeObserver(drawWires).observe($('#main'));
+    if (!window.claude || typeof window.claude.use !== 'function') {
+      S.mode = 'local'; loadLocal(); render(); return;
+    }
+    render();
+    Promise.all([window.claude.use('db'), window.claude.use('user')]).then(function (r) {
+      if (!r[0]) { S.mode = 'offline'; S.canWrite = false; render(); return; }
+      db = r[0]; S.mode = 'shared';
+      var ask = r[1] ? r[1].can('data.write') : Promise.resolve(null);
+      return ask.then(function (can) {
+        S.canKnown = can;
+        if (can === false) S.canWrite = false;
+        subscribe(); render();
+      });
+    }).catch(function () { S.mode = 'offline'; S.canWrite = false; render(); });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
